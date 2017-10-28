@@ -1,0 +1,111 @@
+#!/usr/bin/env sh
+#
+#  terminal.email: a script for connecting to https://api.terminal.email
+#
+#  Copyright 2017 Yuze Huang
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
+# Constants
+ENDPOINT='https://api.terminal.email/'
+PROG=$0
+
+# User options
+sub=
+key=$TERMINAL_DOT_EMAIL_USER_KEY
+
+main() {
+  parse "$@"
+
+  if type wget > /dev/null; then
+    cmd="wget -O- '--post-data=$payload' \"$ENDPOINT\" 2>&1"
+  elif type curl > /dev/null; then
+    cmd="curl -f -sS -X POST \"$ENDPOINT\" -d '$payload' 2>&1"
+  else
+    die 'Please install curl or wget!' no_usage
+  fi
+
+  res=$(eval $cmd)
+
+  if [ "$?" != "0" ]; then
+    >&2 echo 'ERROR: could not send email!'
+    >&2 echo ''
+    >&2 echo 'Please send the following error message to dan@terminal.email:'
+    >&2 echo '--------------------------------------------------------------'
+    >&2 echo "cmd: $cmd"
+    >&2 echo "$res"
+    >&2 echo '--------------------------------------------------------------'
+    exit 1
+  fi
+}
+
+parse() {
+  while [ "$1" != "" ]; do
+    PARAM=$1
+    VALUE=$2
+    case $PARAM in
+      -h | --help)
+        usage
+        exit
+        ;;
+      -k | --key)
+        if [ "$VALUE" = "" ]; then
+          die "Blank value provided for $PARAM"
+        fi
+        key=$VALUE
+        shift
+        ;;
+      -*)
+        die "unknown parameter \"$PARAM\""
+        ;;
+      *)
+        if [ "$sub" != "" ]; then
+          die "got extra positional argument \"$PARAM\""
+        fi
+        sub=$PARAM
+        ;;
+    esac
+    shift
+  done
+
+  if [ "$sub" = "" ]; then
+    die 'please provide a subject line!'
+  fi
+
+  if [ "$key" = "" ]; then
+    die 'please provide a user key!'
+  fi
+
+  payload=`printf '{"action":"send","user_key":"%s","subject":"%s"}' "$key" "$sub"`
+}
+
+die() {
+  echo "ERROR: $1"
+  if [ "$2" = "" ]; then
+    usage
+  fi
+  exit 1
+}
+
+usage() {
+  echo ""
+  echo "Usage: $PROG [-h] [-k user-key] <subject-line>"
+  echo ""
+  echo "  (-h | --help) Print this help message, then exit."
+  echo "  (-k | --key)  Specify the user key. (default: \$TERMINAL_DOT_EMAIL_USER_KEY)"
+  echo ""
+}
+
+main "$@"
+
+# vim: ft=sh
